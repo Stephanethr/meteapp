@@ -1,0 +1,30 @@
+package com.example.meteapp.location
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.location.Location
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+
+class LocationHelper(private val context: Context) {
+    private val client: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
+
+    @SuppressLint("MissingPermission")
+    suspend fun getLastLocation(): Location? {
+        return try {
+            suspendCancellableCoroutine<Location?> { cont ->
+                val task = client.lastLocation
+                task.addOnSuccessListener { loc ->
+                    cont.resume(loc)
+                }
+                task.addOnFailureListener {
+                    cont.resume(null)
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+}
