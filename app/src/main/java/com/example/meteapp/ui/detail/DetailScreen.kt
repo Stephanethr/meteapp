@@ -37,7 +37,7 @@ import com.example.meteapp.ui.components.WeatherCard
 import com.example.meteapp.ui.components.LoadingIndicator
 import com.example.meteapp.ui.components.ErrorMessage
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,11 +54,10 @@ fun DetailScreen(latitude: Double, longitude: Double, cityName: String, onBack: 
             TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = { onBack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Retour")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
                     }
                 },
-                title = { Text("🌤️ Détail météo — $cityName", style = MaterialTheme.typography.headlineMedium) },
-                modifier = Modifier.background(MaterialTheme.colorScheme.primary)
+                title = { Text(cityName, style = MaterialTheme.typography.headlineMedium) },
             )
         }
     ) { padding ->
@@ -145,20 +144,6 @@ fun DetailScreen(latitude: Double, longitude: Double, cityName: String, onBack: 
                                     }
                                 }
                             }
-                        }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // Hourly forecast section (optional nice-to-have)
-                        Text("📊 Prévisions horaires", style = MaterialTheme.typography.titleMedium, color = Color.Gray, modifier = Modifier.align(Alignment.Start))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White, RoundedCornerShape(12.dp))
-                                .padding(16.dp)
-                        ) {
-                            Text("Données horaires disponibles (première heure)", color = Color.Gray, fontSize = 12.sp)
                         }
                     }
                 }

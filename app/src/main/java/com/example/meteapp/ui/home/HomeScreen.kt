@@ -47,8 +47,8 @@ import com.example.meteapp.location.LocationHelper
 import com.example.meteapp.ui.components.WeatherCard
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.MaterialTheme
@@ -59,7 +59,12 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.text.style.TextAlign
+
+data class WeatherSummary(
+    val temp: String,
+    val weatherCode: Int
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,27 +87,53 @@ fun HomeScreen(onOpenDetail: (Double, Double, String) -> Unit = { _, _, _ -> }) 
     // observe favorites
     val favoritesState = repo.observeFavorites().collectAsState(initial = emptyList())
 
-    // map favoriteId -> summary string (temp or error)
-    val favSummaries = remember { mutableStateMapOf<Long, String>() }
+    // map favoriteId -> summary
+    val favSummaries = remember { mutableStateMapOf<Long, WeatherSummary>() }
+    // map search result key -> summary
+    val searchSummaries = remember { mutableStateMapOf<String, WeatherSummary>() }
 
     // refresh summaries when favorites change
     LaunchedEffect(favoritesState.value) {
         favSummaries.clear()
         favoritesState.value.forEach { fav ->
-            // launch a coroutine per favorite to fetch weather (repository caches responses)
             launch {
                 try {
                     val res = repo.getWeather(fav.latitude, fav.longitude)
                     when (res) {
                         is Result.Success -> {
                             val temp = res.value.current_weather?.temperature
-                            val summary = if (temp != null) "${temp} °C" else "—"
-                            favSummaries[fav.id] = summary
+                            val code = res.value.current_weather?.weathercode
+                            val summary = if (temp != null) "${temp.toInt()} °C" else "—"
+                            favSummaries[fav.id] = WeatherSummary(summary, code ?: 0)
                         }
-                        is Result.Error -> favSummaries[fav.id] = "Err"
+                        is Result.Error -> favSummaries[fav.id] = WeatherSummary("Err", 0)
                     }
                 } catch (_: Exception) {
-                    favSummaries[fav.id] = "Err"
+                    favSummaries[fav.id] = WeatherSummary("Err", 0)
+                }
+            }
+        }
+    }
+
+    // refresh summaries when search results change
+    LaunchedEffect(searchResults) {
+        searchSummaries.clear()
+        searchResults.forEach { result ->
+            launch {
+                val key = "${result.latitude}_${result.longitude}"
+                try {
+                    val res = repo.getWeather(result.latitude, result.longitude)
+                    when (res) {
+                        is Result.Success -> {
+                            val temp = res.value.current_weather?.temperature
+                            val code = res.value.current_weather?.weathercode
+                            val summary = if (temp != null) "${temp.toInt()} °C" else "—"
+                            searchSummaries[key] = WeatherSummary(summary, code ?: 0)
+                        }
+                        is Result.Error -> searchSummaries[key] = WeatherSummary("Err", 0)
+                    }
+                } catch (_: Exception) {
+                    searchSummaries[key] = WeatherSummary("Err", 0)
                 }
             }
         }
@@ -121,13 +152,10 @@ fun HomeScreen(onOpenDetail: (Double, Double, String) -> Unit = { _, _, _ -> }) 
                 }
             }
         } else {
-            // denied -> check if permanently denied
             val shouldShow = activity?.let { ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.ACCESS_FINE_LOCATION) } ?: false
             if (!shouldShow) {
-                // user denied permanently
                 showPermissionDeniedDialog = true
             } else {
-                // user denied temporarily
                 locationError = "Permission non accordée"
             }
         }
@@ -149,7 +177,6 @@ fun HomeScreen(onOpenDetail: (Double, Double, String) -> Unit = { _, _, _ -> }) 
             if (showRationaleNow) {
                 showRationale = true
             } else {
-                // launch system permission request
                 permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
         }
@@ -158,8 +185,16 @@ fun HomeScreen(onOpenDetail: (Double, Double, String) -> Unit = { _, _, _ -> }) 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("🌦️ Météo", style = MaterialTheme.typography.headlineMedium) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+                title = {
+                    Text(
+                        "Météo",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.DarkGray
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
             )
         }
     ) { padding ->
@@ -169,8 +204,7 @@ fun HomeScreen(onOpenDetail: (Double, Double, String) -> Unit = { _, _, _ -> }) 
                 .fillMaxSize()
                 .background(Color.White)
         ) {
-            // Search section
-            Box(modifier = Modifier.background(Color.White).padding(12.dp)) {
+            Box(modifier = Modifier.background(Color.White).padding(horizontal = 8.dp, vertical = 4.dp)) {
                 TextField(
                     value = query,
                     onValueChange = { query = it },
@@ -178,15 +212,19 @@ fun HomeScreen(onOpenDetail: (Double, Double, String) -> Unit = { _, _, _ -> }) 
                     label = { Text("Rechercher une ville...") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(4.dp)
-                        .background(Color(0xFFF0F0F0)),
+                        .padding(4.dp),
                     shape = RoundedCornerShape(12.dp)
                 )
             }
 
-            // Actions row
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(
+                    modifier = Modifier.weight(1f),
                     onClick = {
                         scope.launch {
                             if (query.isNotBlank()) {
@@ -198,33 +236,30 @@ fun HomeScreen(onOpenDetail: (Double, Double, String) -> Unit = { _, _, _ -> }) 
                                 }
                             }
                         }
-                    } ) {
-                    Text("Rechercher")
-                }
+                    }) { Text("Rechercher", maxLines = 1) }
 
-                Spacer(modifier = Modifier.weight(1f))
-
-                OutlinedButton(onClick = { requestLocationPermission() }) {
-                    Text("Ajouter ma position")
-                }
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = { requestLocationPermission() }) { Text("Ma position", maxLines = 1) }
             }
 
             if (locationError != null) {
                 Text(text = "Erreur localisation: $locationError", modifier = Modifier.padding(8.dp))
             }
 
-            // Search results
             if (searchError != null) {
                 Text(text = "Erreur recherche: $searchError", modifier = Modifier.padding(8.dp))
             }
-            // search results area - fixed fraction height to avoid Modifier.weight issues
+
             LazyColumn(modifier = Modifier.fillMaxHeight(0.3f)) {
                 items(searchResults) { item ->
+                    val key = "${item.latitude}_${item.longitude}"
+                    val summary = searchSummaries[key]
                     WeatherCard(
                         title = item.name,
                         subtitle = item.country ?: "",
-                        iconCode = 0,
-                        temp = null,
+                        iconCode = summary?.weatherCode,
+                        temp = summary?.temp ?: "—",
                         modifier = Modifier.padding(8.dp)
                     ) {
                         scope.launch {
@@ -236,31 +271,25 @@ fun HomeScreen(onOpenDetail: (Double, Double, String) -> Unit = { _, _, _ -> }) 
                 }
             }
 
-            // Divider
             HorizontalDivider(color = Color.LightGray, modifier = Modifier.padding(vertical = 8.dp))
 
-            // Favorites list
-            Text(text = "Favoris:", modifier = Modifier.padding(8.dp))
-            // favorites list area — occupe l'espace restant jusqu'en bas
+            Text(text = "Mes villes", modifier = Modifier.padding(8.dp), color = Color.DarkGray)
             var showDeleteDialog by remember { mutableStateOf<FavoriteCityEntity?>(null) }
 
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(favoritesState.value) { fav: FavoriteCityEntity ->
+                    val summary = favSummaries[fav.id]
                     WeatherCard(
                         title = fav.name,
                         subtitle = fav.country ?: "Favori",
-                        temp = favSummaries[fav.id] ?: "—",
-                        iconCode = 0,
+                        temp = summary?.temp ?: "—",
+                        iconCode = summary?.weatherCode,
                         modifier = Modifier
                             .padding(8.dp)
                             .pointerInput(fav.id) {
                                 detectTapGestures(
-                                    onLongPress = {
-                                        showDeleteDialog = fav
-                                    },
-                                    onTap = {
-                                        onOpenDetail(fav.latitude, fav.longitude, fav.name)
-                                    }
+                                    onLongPress = { showDeleteDialog = fav },
+                                    onTap = { onOpenDetail(fav.latitude, fav.longitude, fav.name) }
                                 )
                             }
                     )
@@ -306,16 +335,13 @@ fun HomeScreen(onOpenDetail: (Double, Double, String) -> Unit = { _, _, _ -> }) 
             confirmButton = {
                 TextButton(onClick = {
                     showPermissionDeniedDialog = false
-                    // open app settings
                     try {
                         val pkg = activity?.packageName ?: context.packageName
                         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                             data = Uri.fromParts("package", pkg, null)
                         }
                         activity?.startActivity(intent)
-                    } catch (_: ActivityNotFoundException) {
-                        // ignore
-                    }
+                    } catch (_: ActivityNotFoundException) { /* ignore */ }
                 }) { Text("Ouvrir les paramètres") }
             },
             dismissButton = { TextButton(onClick = { showPermissionDeniedDialog = false }) { Text("Annuler") } },

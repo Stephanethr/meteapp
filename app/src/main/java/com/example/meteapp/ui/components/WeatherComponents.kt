@@ -33,6 +33,7 @@ fun WeatherIcon(code: Int, modifier: Modifier = Modifier, size: Int = 28) {
         in 1..3 -> "🌤️"
         in 45..48 -> "🌫️"
         in 51..67, in 80..82 -> "🌧️"
+        71, 73, 75, 77, 85, 86 -> "❄️"
         in 95..99 -> "⛈️"
         else -> "❓"
     }
@@ -51,11 +52,12 @@ fun WeatherCard(
     val cardModifier = if (onClick != null) modifier.clickable { onClick() } else modifier
     val gradientColor = when (iconCode) {
         0 -> listOf(Color(0xFF2196F3), Color(0xFF64B5F6))  // Soleil - bleu
-        in 1..3 -> listOf(Color(0xFFBDBDBD), Color(0xFFF5F5F5))  // Nuages - gris
+        in 1..3 -> listOf(Color(0xFF607D8B), Color(0xFF90A4AE))  // Nuages - gris-bleu
         in 45..48 -> listOf(Color(0xFF78909C), Color(0xFFB0BEC5))  // Brouillard - bleu-gris
         in 51..67, in 80..82 -> listOf(Color(0xFF1565C0), Color(0xFF42A5F5))  // Pluie - bleu foncé
+        71, 73, 75, 77, 85, 86 -> listOf(Color(0xFF546E7A), Color(0xFF78909C)) // Neige - bleu-gris foncé
         in 95..99 -> listOf(Color(0xFF37474F), Color(0xFF455A64))  // Orage - gris foncé
-        else -> listOf(Color(0xFFF5F5F5), Color(0xFFFFFFFF))
+        else -> listOf(Color(0xFF607D8B), Color(0xFF90A4AE)) // Défaut/Inconnu
     }
 
     Card(
